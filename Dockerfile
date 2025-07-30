@@ -1,22 +1,27 @@
+# Dockerfile
 FROM python:3.9-slim
 
 WORKDIR /app
 
-# Instala dependências do sistema
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc python3-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia requirements primeiro para cache
+# Copy requirements first to leverage Docker cache
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o resto do código
+# Copy the rest of the application
 COPY . .
 
-# Configura healthcheck
-HEALTHCHECK --interval=30s --timeout=3s \
-    CMD ps aux | grep '[p]ython src/etl.py' || exit 1
+# Create logs directory
+RUN mkdir -p /app/logs
 
-# Comando de entrada
-CMD ["python", "-u", "etl_drone.py"]
+# Environment variables (override with docker run -e)
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=utf-8
+
+# Run the drone
+CMD ["python", "etl_drone.py"]

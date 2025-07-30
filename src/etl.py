@@ -23,23 +23,40 @@ def build_query(config):
     ORDER BY date DESC;
     """
 
+# etl.py - modificar validate_data
 def validate_data(df):
-    """Validate and clean data"""
-    try:
-        # Convert date to datetime if needed
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date']).dt.date
-            
-        # Fill numeric NA values with 0
-        numeric_cols = ['total_cost', 'total_conversions', 'total_clicks', 'total_impressions']
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    """Validate and clean data with strict type checking"""
+    type_checks = {
+        'date': 'datetime64[ns]',
+        'acao': 'object',
+        'funil': 'object',
+        'plataforma': 'object',
+        'total_cost': 'float64',
+        'total_conversions': 'float64',
+        'total_clicks': 'float64',
+        'total_impressions': 'float64'
+    }
+    
+    for col, dtype in type_checks.items():
+        if col in df.columns:
+            try:
+                df[col] = df[col].astype(dtype)
+                if dtype == 'datetime64[ns]':
+                    df[col] = df[col].dt.date
+            except Exception as e:
+                logger.error(f"Error converting column {col} to {dtype}: {e}")
+                raise
                 
-        return df
-    except Exception as e:
-        logger.error(f"Data validation error: {e}")
-        raise
+    return df
+
+def check_missing_data(df):
+    """Check for missing data in critical columns"""
+    critical_cols = ['date', 'acao', 'plataforma']
+    missing = df[critical_cols].isnull().sum()
+    
+    if missing.any():
+        logger.warning(f"Missing data found:\n{missing}")
+        # Optionally: raise ValueError if missing data is not acceptable
 
 def main():
     logger.info("Iniciando processo ETL")

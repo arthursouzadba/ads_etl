@@ -126,3 +126,44 @@ class Database:
         except Exception as e:
             logger.error(f"Error during upsert: {e}")
             raise
+
+    def compare_aggregates(self, conn):
+        """Compare source and target aggregates to validate data integrity"""
+        try:
+            query = f"""
+            WITH source_agg AS (
+                SELECT 
+                    SUM(CAST(cost AS numeric)) AS total_cost,
+                    SUM(CAST(NULLIF(conversions, '') AS numeric)) AS total_conversions,
+                    SUM(CAST(NULLIF(clicks, '') AS numeric)) AS total_clicks,
+                    SUM(CAST(NULLIF(impressions, '') AS numeric)) AS total_impressions
+                FROM {self.config.SOURCE_TABLE}
+                WHERE date >= '{self.config.START_DATE}'
+            ),
+            target_agg AS (
+                SELECT 
+                    SUM(total_cost) AS total_cost,
+                    SUM(total_conversions) AS total_conversions,
+                    SUM(total_clicks) AS total_clicks,
+                    SUM(total_impressions) AS total_impressions
+                FROM {self.config.target_table_full}
+                WHERE date >= '{self.config.START_DATE}'
+            )
+            SELECT 
+                'source' AS type, total_cost, total_conversions, total_clicks, total_impressions
+            FROM source_agg
+            UNION ALL
+            SELECT 
+                'target' AS type, total_cost, total_conversions, total_clicks, total_impressions
+            FROM target_agg
+            """
+            
+            with conn.cursor() as cursor:
+                cursor.execute(query)
+                columns = [desc[0] for desc in cursor.description]
+                data = cursor.fetchall()
+                return pd.DataFrame(data, columns=columns)
+                
+        except Exception as e:
+            logger.error(f"Error comparing aggregates: {e}")
+            raise
